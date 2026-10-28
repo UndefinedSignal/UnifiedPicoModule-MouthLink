@@ -22,6 +22,7 @@ public sealed class UnifiedPicoTrackingModule : ExtTrackingModule
     private bool timerPolicyChanged, timerPolicyAttempted;
     private PowerThrottlingState previousTimerPolicy;
     private double lastError;
+    private MouthLinkTongue? mouthLink;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct PowerThrottlingState { public uint Version, ControlMask, StateMask; }
@@ -66,7 +67,7 @@ public sealed class UnifiedPicoTrackingModule : ExtTrackingModule
             pipeline = new(config); diagnostics = new(Log); stopped = false;
             Status = ownsEye || ownsFace ? ModuleState.Active : ModuleState.Idle;
             if (ownsEye || ownsFace) StartSources();
-            Log("UnifiedPicoModule 0.4.0: X v1/v2; VRCFT SDK 5.4.5 / net10. UDP is unauthenticated: trusted LAN only.");
+            Log("UnifiedPicoModule 0.4.0 + MouthLink tongue ml1: X v1/v2; VRCFT SDK 5.4.5 / net10. UDP is unauthenticated: trusted LAN only.");
             return (ownsEye, ownsFace);
         }
     }
@@ -128,6 +129,13 @@ public sealed class UnifiedPicoTrackingModule : ExtTrackingModule
         {
             HonorTimerResolution();
             coordinator = new(config, Log);
+            // Optional tongue direction from MouthLink on this PC. Bind failure (port in use)
+            // only disables this input; face and eye tracking continue unchanged.
+            if (ownsFace)
+            {
+                try { mouthLink = new MouthLinkTongue(Log); }
+                catch (Exception ex) { Log($"MouthLink tongue input unavailable: {ex.Message}"); }
+            }
             wasActive = true;
         }
         catch
@@ -155,7 +163,7 @@ public sealed class UnifiedPicoTrackingModule : ExtTrackingModule
     }
     private void StopSources()
     {
-        try { coordinator?.Dispose(); }
+        try { mouthLink?.Dispose(); mouthLink = null; coordinator?.Dispose(); }
         finally { coordinator = null; RestoreTimerPolicy(); }
     }
     private void RestoreTimerPolicy()
@@ -186,6 +194,14 @@ public sealed class UnifiedPicoTrackingModule : ExtTrackingModule
         var data = UnifiedTracking.Data;
         foreach (var (channel, sdk) in Channels)
             if (ExpressionFrame.IsEye(channel) ? ownsEye : ownsFace) data.Shapes[(int)sdk].Weight = output.Expressions[channel];
+        if (ownsFace && mouthLink is not null)
+        {
+            var tongue = mouthLink.Poll(data.Shapes[(int)UnifiedExpressions.TongueOut].Weight);
+            data.Shapes[(int)UnifiedExpressions.TongueLeft].Weight = tongue.Left;
+            data.Shapes[(int)UnifiedExpressions.TongueRight].Weight = tongue.Right;
+            data.Shapes[(int)UnifiedExpressions.TongueUp].Weight = tongue.Up;
+            data.Shapes[(int)UnifiedExpressions.TongueDown].Weight = tongue.Down;
+        }
         if (!ownsEye) return;
         data.Eye.Left.Gaze.x = output.Left.GazeX; data.Eye.Left.Gaze.y = output.Left.GazeY;
         data.Eye.Left.Openness = output.Left.Openness; data.Eye.Left.PupilDiameter_MM = output.Left.PupilMillimeters;
