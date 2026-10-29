@@ -10,6 +10,14 @@
 
 English | [简体中文](README_zh.md)
 
+> **UnifiedPicoModule-MouthLink** — a fork of UnifiedPicoModule 0.4.0 with one addition: an
+> optional loopback input (`127.0.0.1:9050`) for [MouthLink](https://github.com/UndefinedSignal/MouthLink),
+> a mouth model trained on the user's own PICO 4 Pro mouth-camera frames. Model values are laid over
+> stock per channel (`model` / `stock` / `blend:w` / `max`, set in `MouthLink.json` next to the DLL and
+> re-read on save) and add channels stock lacks: tongue directions, TongueRoll, separate cheek puff and
+> suck, lip tighteners. Without the MouthLink input the module behaves exactly like upstream.
+> Source: `Sdk/MouthLinkInput.cs`. Everything below is the upstream README.
+
 UnifiedPicoModule is a PICO eye and face tracking module for VRCFaceTracking (VRCFT).
 
 Tracking data from a PICO headset can be delivered by several senders, including PicoFacialBridge, PICO Connect, Streaming Assistant and the earlier PicoFacialDataDaemon. Each sender uses its own data format and port. This module supports all of these formats, detects which source is currently available, and forwards its data to VRCFT through a single output, so there is no need to install a separate module for each sender.

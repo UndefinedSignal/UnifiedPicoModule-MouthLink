@@ -8,7 +8,7 @@ public static class NeutralFaceMapper
 {
     // Declarative correspondence between sensor meanings and output channel meanings.
     // Multiple outputs from one slot are explicit; no compensation or implicit gain.
-    private static readonly (P Input, C[] Outputs)[] Bindings =
+    internal static readonly (P Input, C[] Outputs)[] Bindings =
     [
         (P.EyeSquintL, [C.EyeSquintLeft]), (P.EyeSquintR, [C.EyeSquintRight]),
         (P.EyeWideL, [C.EyeWideLeft]), (P.EyeWideR, [C.EyeWideRight]),
