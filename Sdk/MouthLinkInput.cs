@@ -136,7 +136,7 @@ internal sealed class MouthLinkInput : IDisposable
         {
             socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, settings.Port));
             socket.Client.Blocking = false; boundPort = settings.Port;
-            log($"MouthLink ml2: listening on 127.0.0.1:{settings.Port}; default mode {settings.DefaultMode}, " +
+            log($"MouthLink ml3: listening on 127.0.0.1:{settings.Port}; default mode {settings.DefaultMode}, " +
                 $"{modes.Count} per-channel modes; config {configPath}.");
         }
         catch (Exception ex) { log($"MouthLink input unavailable on 127.0.0.1:{settings.Port}: {ex.Message}"); }
@@ -289,7 +289,13 @@ internal sealed class MouthLinkInput : IDisposable
     {
         long now = Stopwatch.GetTimestamp();
         CheckConfig(now);
-        if (!settings.Enabled) return;
+        if (!settings.Enabled)
+        {
+            // Nothing else writes the channels stock lacks; keep them at a defined 0.
+            foreach (var t in Targets.Values)
+                if (t.New) foreach (var s in t.Shapes) shapes[(int)s].Weight = 0;
+            return;
+        }
         Receive();
         bool fresh = received != 0 && count == layout.Length &&
                      Stopwatch.GetElapsedTime(received, now).TotalMilliseconds < settings.FreshMs;
@@ -308,13 +314,16 @@ internal sealed class MouthLinkInput : IDisposable
                 }
         }
         float gate = GateFor(shapes[(int)UnifiedExpressions.TongueOut].Weight);
-        // New channels this input owns: fresh → model (tongue ones gated); stale → 0. Mode "stock" leaves them alone.
+        // Channels stock lacks are always written here: fresh → model (tongue ones gated by TongueOut),
+        // stale or mode "stock" → 0. Nothing else writes them, and left alone they can hold garbage
+        // (seen live: TongueUp = 4294967296 with "TongueUp": "stock" in ml2).
         foreach (var t in Targets.Values)
         {
-            if (!t.New || ModeFor(t.Name).Kind == ModeKind.Stock) continue;
+            if (!t.New) continue;
+            var mode = ModeFor(t.Name);
             bool present = layoutIndex.TryGetValue(t.Name, out int i);
-            if (fresh && present && !t.Gated) continue;   // written above
-            float v = fresh && present ? ModeFor(t.Name).Apply(0, values[i]) * gate : 0;
+            if (fresh && present && !t.Gated && mode.Kind != ModeKind.Stock) continue;   // written above
+            float v = fresh && present ? mode.Apply(0, values[i]) * (t.Gated ? gate : 1f) : 0f;
             foreach (var s in t.Shapes) shapes[(int)s].Weight = Math.Clamp(v, 0f, 1f);
         }
         lastGate = gate; lastFresh = fresh;
@@ -353,7 +362,7 @@ internal sealed class MouthLinkInput : IDisposable
 
   // Mode for each model channel (names as the model sends them):
   //   "model"      model value replaces stock
-  //   "stock"      ignore the model for this channel
+  //   "stock"      ignore the model for this channel (channels stock lacks are then 0)
   //   "blend:0.5"  stock * (1 - w) + model * w
   //   "max"        larger of stock and model
   // Stock mouth channels: CheekPuff CheekSquintL CheekSquintR JawForward JawLeft JawOpen JawRight
