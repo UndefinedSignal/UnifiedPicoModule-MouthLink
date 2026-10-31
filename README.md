@@ -31,6 +31,12 @@ English | [简体中文](README_zh.md)
 > switches to values from MouthLink's `tools/mouthlink_live.py` on `127.0.0.1:9050` and frees the
 > camera for recording with `MouthLink.Receiver` (the headset streams to one subscriber at a time).
 >
+> **Security.** Mouth-camera frames are images of your face, sent unencrypted over the LAN: use a trusted
+> network and never expose UDP 9040/9041 to the internet. The headset side accepts subscriptions only from
+> private addresses by default (`picoet.sh mouthlink-allow <PC-IP>` narrows it to this PC) and does not let
+> another address take over a running stream; this module accepts frames only from the headset it
+> subscribed to. Treat a model like a program: use only your own. Details: [privacy](docs/privacy.md#mouthlink-fork-addition).
+>
 > Source: `Sdk/MouthLinkInput.cs`, `Sdk/MouthLink/`. Everything below is the upstream README.
 
 UnifiedPicoModule is a PICO eye and face tracking module for VRCFaceTracking (VRCFT).

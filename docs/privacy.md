@@ -115,3 +115,14 @@ Streaming (29765 / 29763):
 ## Release package
 
 The module package contains a freshly generated default `UnifiedPicoModule.json`, so it carries no personal IP addresses, migration records or local paths. The compiled module does not record the build machine's user directory, and `sdk-provenance.json` lists only the SDK commit, assembly version and file digests. When sharing your own configuration or logs, follow the checklist above.
+
+## MouthLink (fork addition)
+
+With a MouthLink model installed, the module also handles **mouth-camera images**: infrared pictures of the lower face, i.e. biometric data.
+
+- Frames are received over UDP from the headset (PicoET-Enhance-MouthLink), processed in memory and dropped. Nothing is written to disk and nothing leaves the PC; the model's output goes to VRCFT like any other expression weight.
+- The stream is unencrypted. Anyone who can read your LAN traffic (for example with the Wi-Fi password) can see it. Use a trusted network; never forward UDP 9040/9041 from the internet.
+- The headset accepts SUBSCRIBE only from private addresses by default; restrict it to this PC with `picoet.sh mouthlink-allow <PC-IP>`. An active stream cannot be taken over by another address.
+- The module accepts frames only from the headset it subscribed to and DISCOVER answers only from private addresses; the loopback input (`udp` source) accepts only `127.0.0.1`.
+- The log contains the headset address (`subscribing to the headset at …`). Remove it before sharing logs.
+- A model (`mouth.onnx`) is trained on your face and is executed by ONNX Runtime: treat models like programs — use only your own, and do not publish yours.

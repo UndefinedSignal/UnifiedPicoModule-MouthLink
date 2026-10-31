@@ -2,6 +2,24 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [0.4.0-mouthlink.4] - 2026-10-31
+
+分支版本（UnifiedPicoModule-MouthLink）。未安装 MouthLink 模型时，行为与上游一致。
+
+### 新功能
+- 内置 MouthLink：DLL 旁放置 `MouthLink/mouth.onnx` 与 `mouth.json` 后，模块会订阅头显的嘴部摄像头（PicoET-Enhance-MouthLink），通过 VRCFaceTracking 自带的 ONNX Runtime 在 CPU 上运行模型，并叠加到原生结果之上：舌头方向、TongueRoll、左右分开的鼓腮/吸腮、嘴唇收紧；原生嘴部形状可按通道选择 `model` / `stock` / `blend:w` / `max`。
+- `MouthLink.json`（保存后自动重新读取）：`Source` `auto` / `builtin` / `udp`，`Lo` / `Hi` / `HiChannels`，One Euro 或 EMA 平滑，`Headset`。替换模型文件后会自动重新加载。
+- `udp` 来源：通过 `127.0.0.1:9050` 接收 MouthLink 的 `tools/mouthlink_live.py` 发送的数值（MLK2、MLK1）。
+
+### 安全
+- 仅接受已订阅头显发来的摄像头帧；DISCOVER 回应仅接受私有地址；超过 4 MiB 的帧会被拒绝。
+- 回环输入仅接受来自 `127.0.0.1` 的发送方。
+
+### 说明与注意事项
+- 请搭配 PicoET-Enhance-MouthLink 2.4.2-ml4 或更新版本：它限制可订阅摄像头的来源（默认仅私有网络，可设置允许列表），并防止正在进行的视频流被他人接管。
+- ModuleId 与上游相同：此版本会替换 UnifiedPicoModule。若要保留 MouthLink，请勿在 VRCFT 模块库中接受上游的"更新"。
+- 发布包不含模型：MouthLink 模型需用你自己的面部数据训练。
+
 ## [0.4.0] - 2026-10-17
 
 ### 新增

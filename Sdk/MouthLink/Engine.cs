@@ -140,6 +140,7 @@ internal sealed class MouthLinkEngine : IDisposable
         var buffer = new byte[65536];
         var subscribe = Wire.SubscribePacket((ushort)options.ListenPort);
         IPEndPoint? target = null, discovered = null;
+        long foreign = 0;
         IPAddress? configured = null;
         long nextResolve = 0, nextSubscribe = 0, nextDiscover = 0, nextBind = 0, lastFrame = 0, started = Stopwatch.GetTimestamp();
         long statsAt = started, framesAt = 0, inferAt = 0; double msAt = 0;
@@ -209,12 +210,20 @@ internal sealed class MouthLinkEngine : IDisposable
                 while (n >= 0)
                 {
                     var data = buffer.AsSpan(0, n);
-                    if (Wire.IsHello(data))
+                    var sender = Normalize(((IPEndPoint)from).Address);
+                    // Only the headset we subscribed to may feed frames: anyone else on the network
+                    // could otherwise push fake images (and so drive the avatar's mouth).
+                    if (target is not null && !sender.Equals(target.Address)) foreign++;
+                    else if (Wire.IsHello(data))
                     {
-                        if (discovered is null) log($"MouthLink: headset answered DISCOVER from {((IPEndPoint)from).Address}.");
-                        discovered = (IPEndPoint)from;
+                        // Discovery answers count only from private networks (never a public address).
+                        if (target is null && IsPrivate(sender))
+                        {
+                            log($"MouthLink: headset answered DISCOVER from {sender}.");
+                            discovered = new IPEndPoint(sender, ((IPEndPoint)from).Port);
+                        }
                     }
-                    else if (assembler.Feed(data) is { } f) frame = f;
+                    else if (target is not null && assembler.Feed(data) is { } f) frame = f;
                     if (socket.Available <= 0) break;
                     try { n = socket.ReceiveFrom(buffer, ref from); }
                     catch (SocketException) { break; }
@@ -309,7 +318,7 @@ internal sealed class MouthLinkEngine : IDisposable
                     long inf = Inferences - inferAt;
                     log(FormattableString.Invariant(
                         $"MouthLink built-in: {(Frames - framesAt) / s:F1} frames/s, model {inf / s:F1}/s at {(InferenceMs - msAt) / Math.Max(1, inf):F2} ms, ") +
-                        $"dropped {assembler.Dropped}, bad {assembler.Bad}.");
+                        $"dropped {assembler.Dropped}, bad {assembler.Bad}, from other hosts {foreign}.");
                     statsAt = now; framesAt = Frames; inferAt = Inferences; msAt = InferenceMs;
                 }
             }
@@ -333,6 +342,17 @@ internal sealed class MouthLinkEngine : IDisposable
     {
         double tau = 1.0 / (2 * Math.PI * cutoff);
         return (float)(1.0 / (1.0 + tau / dt));
+    }
+
+    private static IPAddress Normalize(IPAddress a) => a.IsIPv4MappedToIPv6 ? a.MapToIPv4() : a;
+
+    // RFC 1918, link-local, loopback, CGNAT/Tailscale — the ranges the headset side accepts by default.
+    private static bool IsPrivate(IPAddress a)
+    {
+        if (a.AddressFamily != AddressFamily.InterNetwork) return false;
+        var b = a.GetAddressBytes();
+        return b[0] == 10 || b[0] == 127 || (b[0] == 172 && (b[1] & 0xF0) == 16) || (b[0] == 192 && b[1] == 168) ||
+               (b[0] == 169 && b[1] == 254) || (b[0] == 100 && (b[1] & 0xC0) == 64);
     }
 
     private static IPAddress? Resolve(string headset)

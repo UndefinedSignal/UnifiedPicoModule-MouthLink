@@ -102,13 +102,14 @@ internal sealed class FrameAssembler
     }
 
     private const int Keep = 8;
+    private const uint MaxPayload = 4 << 20;   // the headset never sends more (kMaxFrameBytes)
     private readonly Dictionary<uint, Partial> pending = new();
     public long Completed, Dropped, Bad;
 
     public CameraFrame? Feed(ReadOnlySpan<byte> d)
     {
         if (!Wire.TryParse(d, out var h)) { Bad++; return null; }
-        if (h.FragCount == 0 || h.FragIndex >= h.FragCount || h.PayloadLen == 0 || h.PayloadLen > 16 << 20 ||
+        if (h.FragCount == 0 || h.FragIndex >= h.FragCount || h.PayloadLen == 0 || h.PayloadLen > MaxPayload ||
             d.Length < Wire.HeaderSize + h.FragLen || (long)h.FragOffset + h.FragLen > h.PayloadLen)
         { Bad++; return null; }
         if (!pending.TryGetValue(h.FrameId, out var p))

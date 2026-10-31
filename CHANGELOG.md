@@ -2,6 +2,24 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [0.4.0-mouthlink.4] - 2026-10-31
+
+Fork release (UnifiedPicoModule-MouthLink). Upstream behaviour is unchanged unless a MouthLink model is installed.
+
+### Features
+- Built-in MouthLink: with `MouthLink/mouth.onnx` + `mouth.json` next to the DLL, the module subscribes to the headset's mouth camera (PicoET-Enhance-MouthLink), runs the model on the CPU through the ONNX Runtime that VRCFaceTracking ships, and lays the result over stock: tongue directions, TongueRoll, separate cheek puff/suck, lip tighteners, and per-channel `model` / `stock` / `blend:w` / `max` for stock mouth shapes.
+- `MouthLink.json` (re-read on save): `Source` `auto` / `builtin` / `udp`, `Lo` / `Hi` / `HiChannels`, One Euro or EMA smoothing, `Headset`. A replaced model file is reloaded.
+- `udp` source: values from MouthLink's `tools/mouthlink_live.py` on `127.0.0.1:9050` (MLK2, MLK1).
+
+### Security
+- Camera frames are accepted only from the headset the module subscribed to; DISCOVER answers only from private addresses; frames above 4 MiB are rejected.
+- The loopback input accepts only `127.0.0.1` senders.
+
+### Notes & Caveats
+- Pair with PicoET-Enhance-MouthLink 2.4.2-ml4 or later: it restricts who may subscribe to the camera (private networks by default, optional allow list) and keeps an active stream from being taken over.
+- The same ModuleId as upstream: this build replaces UnifiedPicoModule. Do not accept an upstream "update" in VRCFT's registry if you want to keep MouthLink.
+- No model ships in the release: a MouthLink model is trained on your own face.
+
 ## [0.4.0] - 2026-10-17
 
 ### Features

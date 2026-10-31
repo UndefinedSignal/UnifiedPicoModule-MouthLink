@@ -287,6 +287,9 @@ internal sealed class MouthLinkInput : IDisposable
                 if (!(v > s.Lo && v <= 1)) { log($"MouthLink: HiChannels {name}={v} needs Lo < value <= 1 (ignored)."); s.HiChannels.Remove(name); }
             if (!(s.MinCutoff > 0) || !(s.Beta >= 0)) { s.MinCutoff = 0.7f; s.Beta = 0.5f; }
             if (!(s.Tau >= 0)) s.Tau = 0.04f;
+            if (s.Port is < 1 or > 65535) { log($"MouthLink: Port {s.Port} is not 1..65535; using 9050."); s.Port = 9050; }
+            if (s.CtrlPort is < 1 or > 65535) { log($"MouthLink: CtrlPort {s.CtrlPort} is not 1..65535; using 9040."); s.CtrlPort = 9040; }
+            if (s.ListenPort is < 1 or > 65535) { log($"MouthLink: ListenPort {s.ListenPort} is not 1..65535; using 9041."); s.ListenPort = 9041; }
             s.Model = string.IsNullOrWhiteSpace(s.Model) ? "MouthLink/mouth.onnx" : s.Model;
             s.Runtime ??= "";
             sourceNote = s.Source.Trim().ToLowerInvariant() == "auto" ? $", no built-in model at {s.Model}" : "";
