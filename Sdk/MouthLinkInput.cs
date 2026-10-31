@@ -88,10 +88,11 @@ internal sealed class MouthLinkInput : IDisposable
         public float Lo { get; set; } = 0.15f;
         public float Hi { get; set; } = 0.55f;
         public Dictionary<string, float> HiChannels { get; set; } = new();
-        public string Filter { get; set; } = "euro";
+        public string Filter { get; set; } = "ema";
         public float MinCutoff { get; set; } = 0.7f;
         public float Beta { get; set; } = 0.5f;
         public float Tau { get; set; } = 0.04f;
+        public float Attack { get; set; } = 0.15f;
         public int Threads { get; set; } = 1;
     }
 
@@ -183,7 +184,7 @@ internal sealed class MouthLinkInput : IDisposable
     private MouthLink.MouthLinkEngine.Options EngineOptions() => new(
         FullPath(settings.Model), RuntimePath(), settings.Headset ?? "", settings.CtrlPort, settings.ListenPort,
         settings.Lo, settings.Hi, new Dictionary<string, float>(settings.HiChannels ?? new(), StringComparer.Ordinal),
-        settings.Filter.Trim().ToLowerInvariant(), settings.MinCutoff, settings.Beta, settings.Tau, Math.Clamp(settings.Threads, 1, 8));
+        settings.Filter.Trim().ToLowerInvariant(), settings.MinCutoff, settings.Beta, settings.Tau, settings.Attack, Math.Clamp(settings.Threads, 1, 8));
 
     // Starts, keeps or stops the built-in model and the UDP input to match the settings.
     private void Bind()
@@ -287,6 +288,7 @@ internal sealed class MouthLinkInput : IDisposable
                 if (!(v > s.Lo && v <= 1)) { log($"MouthLink: HiChannels {name}={v} needs Lo < value <= 1 (ignored)."); s.HiChannels.Remove(name); }
             if (!(s.MinCutoff > 0) || !(s.Beta >= 0)) { s.MinCutoff = 0.7f; s.Beta = 0.5f; }
             if (!(s.Tau >= 0)) s.Tau = 0.04f;
+            if (!(s.Attack >= 0)) s.Attack = 0.15f;
             if (s.Port is < 1 or > 65535) { log($"MouthLink: Port {s.Port} is not 1..65535; using 9050."); s.Port = 9050; }
             if (s.CtrlPort is < 1 or > 65535) { log($"MouthLink: CtrlPort {s.CtrlPort} is not 1..65535; using 9040."); s.CtrlPort = 9040; }
             if (s.ListenPort is < 1 or > 65535) { log($"MouthLink: ListenPort {s.ListenPort} is not 1..65535; using 9041."); s.ListenPort = 9041; }
@@ -508,11 +510,15 @@ internal sealed class MouthLinkInput : IDisposable
   "Hi": 0.55,
   // Own Hi for single channels, e.g. { "TongueRight": 0.45 }.
   "HiChannels": {},
-  // "euro" (One Euro: smooth at rest, quick on fast moves) or "ema" (constant, Tau seconds).
-  "Filter": "euro",
+  // "ema" (constant smoothing, Tau seconds; as mouthlink_live.py) or "euro" (One Euro: steadier
+  // at rest, but short expressions come out weaker; MinCutoff Hz, Beta).
+  "Filter": "ema",
   "MinCutoff": 0.7,
   "Beta": 0.5,
   "Tau": 0.04,
+  // Tongue channels rise this slowly (s) and fall at the normal rate: a short false spike while
+  // the mouth opens does not throw the tongue out. 0 = like the other channels.
+  "Attack": 0.15,
   "Threads": 1,
 
   // Model values older than this fall back to stock; channels stock lacks are written 0.

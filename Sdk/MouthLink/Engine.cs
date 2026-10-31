@@ -26,7 +26,7 @@ internal sealed class MouthLinkEngine : IDisposable
     public sealed record Options(
         string ModelPath, string RuntimePath, string Headset, int CtrlPort, int ListenPort,
         float Lo, float Hi, IReadOnlyDictionary<string, float> HiChannels,
-        string Filter, float MinCutoff, float Beta, float Tau, int Threads)
+        string Filter, float MinCutoff, float Beta, float Tau, float Attack, int Threads)
     {
         // Records compare dictionaries by reference; restart decisions need contents.
         public bool SameAs(Options o) => this with { HiChannels = o.HiChannels } == o &&
@@ -122,6 +122,9 @@ internal sealed class MouthLinkEngine : IDisposable
         int k = channels.Length;
         var hi = new float[k];
         var stretch = new bool[k];
+        // Tongue channels rise with Attack (s) and fall with the normal filter, so a short false
+        // spike while the mouth opens does not throw the tongue out (mouthlink_live.py --attack).
+        var tongue = channels.Select(c => c.StartsWith("Tongue", StringComparison.Ordinal)).ToArray();
         for (int i = 0; i < k; i++)
         {
             stretch[i] = !Stock.Contains(channels[i]);
@@ -284,6 +287,7 @@ internal sealed class MouthLinkEngine : IDisposable
                 float dt = lastCapture == 0 ? 1f / 90 : Math.Clamp((float)((long)(frame.CaptureNs - lastCapture) / 1e9), 0f, 0.2f);
                 lastCapture = frame.CaptureNs;
                 for (int i = 0; i < k; i++) raw[i] = float.IsFinite(raw[i]) ? Math.Clamp(raw[i], 0f, 1f) : 0f;
+                float attack = options.Attack > 0 ? 1f - MathF.Exp(-dt / options.Attack) : 1f;
                 if (!haveState) { raw.CopyTo(filtered); haveState = true; }
                 else if (options.Filter == "euro")
                 {
@@ -292,13 +296,16 @@ internal sealed class MouthLinkEngine : IDisposable
                     {
                         float d = (raw[i] - filtered[i]) / t;
                         dx[i] += (d - dx[i]) * ad;
-                        filtered[i] += (raw[i] - filtered[i]) * Alpha(options.MinCutoff + options.Beta * Math.Abs(dx[i]), t);
+                        float a = Alpha(options.MinCutoff + options.Beta * Math.Abs(dx[i]), t);
+                        if (attack < 1f && tongue[i] && raw[i] > filtered[i]) a = Math.Min(a, attack);
+                        filtered[i] += (raw[i] - filtered[i]) * a;
                     }
                 }
                 else
                 {
                     float a = options.Tau <= 0 ? 1f : 1f - MathF.Exp(-dt / options.Tau);
-                    for (int i = 0; i < k; i++) filtered[i] += (raw[i] - filtered[i]) * a;
+                    for (int i = 0; i < k; i++)
+                        filtered[i] += (raw[i] - filtered[i]) * (attack < 1f && tongue[i] && raw[i] > filtered[i] ? attack : a);
                 }
                 for (int i = 0; i < k; i++)
                     output[i] = stretch[i]
@@ -333,9 +340,10 @@ internal sealed class MouthLinkEngine : IDisposable
         }
     }
 
-    private string Describe() => options.Filter == "euro"
+    private string Describe() => (options.Filter == "euro"
         ? FormattableString.Invariant($"euro min_cutoff={options.MinCutoff} beta={options.Beta}")
-        : FormattableString.Invariant($"ema tau={options.Tau}s");
+        : FormattableString.Invariant($"ema tau={options.Tau}s")) +
+        (options.Attack > 0 ? FormattableString.Invariant($", tongue attack {options.Attack}s") : "");
 
     // One Euro smoothing factor for a cutoff frequency (Hz) and a step (s).
     private static float Alpha(float cutoff, float dt)
