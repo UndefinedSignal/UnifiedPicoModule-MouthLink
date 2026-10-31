@@ -229,6 +229,7 @@ public sealed class BridgeUdpSource : UdpTrackingSource
         if (peer is not null) return;
         ClearSubscription();
         peer = new(sender.Address, sender.Port);
+        if (!IPAddress.IsLoopback(sender.Address)) UnifiedPicoModule.Sdk.MouthLink.HeadsetHint.Set(sender.Address); // MouthLink fork
         lastActivity = now;
         lastData = 0;
         lastMode = capabilities.ModeKnown ? now : 0;

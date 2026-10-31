@@ -11,9 +11,12 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace UnifiedPicoModule.Sdk;
 
-// Mouth values from MouthLink live inference on this PC (tools/mouthlink_live.py in the MouthLink
-// repository): a model trained on the user's own mouth-camera frames. Loopback UDP only,
-// 127.0.0.1:9050, one datagram per camera frame.
+// Mouth values from a MouthLink model: a model trained on the user's own mouth-camera frames
+// (MouthLink repository). Two sources, picked by "Source" in MouthLink.json:
+// - built-in (MouthLink/Engine.cs): this module subscribes to the headset's mouth camera
+//   (PicoET-Enhance-MouthLink) and runs the ONNX model itself — nothing else to start;
+// - udp: values from tools/mouthlink_live.py over loopback UDP, 127.0.0.1:9050, one datagram per frame.
+// "auto" (default) = built-in when the model file is there, else udp.
 //
 // Channels are named by the model, never by position:
 // - the 33 stock mouth shapes (CheekPuff, MouthSmileL, JawOpen, TongueOut, ...) use the PICO names and
@@ -74,6 +77,22 @@ internal sealed class MouthLinkInput : IDisposable
         public Dictionary<string, string> Modes { get; set; } = new();
         public float TongueGateFrom { get; set; } = 0.05f;
         public float TongueGateFull { get; set; } = 0.20f;
+
+        // Built-in model (Source "auto" / "builtin"). Relative paths are relative to this DLL.
+        public string Source { get; set; } = "auto";
+        public string Model { get; set; } = "MouthLink/mouth.onnx";
+        public string Runtime { get; set; } = "";
+        public string Headset { get; set; } = "";
+        public int CtrlPort { get; set; } = 9040;
+        public int ListenPort { get; set; } = 9041;
+        public float Lo { get; set; } = 0.15f;
+        public float Hi { get; set; } = 0.55f;
+        public Dictionary<string, float> HiChannels { get; set; } = new();
+        public string Filter { get; set; } = "euro";
+        public float MinCutoff { get; set; } = 0.7f;
+        public float Beta { get; set; } = 0.5f;
+        public float Tau { get; set; } = 0.04f;
+        public int Threads { get; set; } = 1;
     }
 
     // One model channel: VRCFT targets; New = stock has no such channel; Gated = needs TongueOut up.
@@ -100,7 +119,12 @@ internal sealed class MouthLinkInput : IDisposable
     }
 
     private readonly Action<string> log;
+    private readonly string directory;
     private readonly string configPath;
+    private MouthLink.MouthLinkEngine? engine;
+    internal MouthLink.MouthLinkEngine? Engine => engine;   // tests
+    private DateTime modelStamp;
+    private string sourceNote = "";
     private Settings settings = new();
     private Mode defaultMode = new(ModeKind.Model, 1);
     private Dictionary<string, Mode> modes = new(StringComparer.OrdinalIgnoreCase);
@@ -123,20 +147,77 @@ internal sealed class MouthLinkInput : IDisposable
     public MouthLinkInput(Action<string> logger, string directory)
     {
         log = logger;
+        this.directory = directory;
         configPath = Path.Combine(directory, FileName);
         LoadSettings(initial: true);
         Bind();
     }
 
+    private string FullPath(string path) => Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(directory, path));
+
+    private static DateTime Stamp(string path)
+    {
+        try { return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : default; }
+        catch { return default; }
+    }
+
+    // onnxruntime: the configured file, else MouthLink/onnxruntime.dll next to this module, else the one
+    // VRCFaceTracking itself ships (1.23 in VRCFT 5.4.5).
+    private string RuntimePath()
+    {
+        if (!string.IsNullOrWhiteSpace(settings.Runtime)) return FullPath(settings.Runtime);
+        var name = OperatingSystem.IsWindows() ? "onnxruntime.dll" : "libonnxruntime.so";
+        var local = FullPath(Path.Combine("MouthLink", name));
+        if (File.Exists(local)) return local;
+        var host = Path.Combine(AppContext.BaseDirectory, name);
+        return File.Exists(host) ? host : local;
+    }
+
+    private bool UseBuiltIn() => settings.Source.Trim().ToLowerInvariant() switch
+    {
+        "builtin" => true,
+        "udp" => false,
+        _ => File.Exists(FullPath(settings.Model))
+    };
+
+    private MouthLink.MouthLinkEngine.Options EngineOptions() => new(
+        FullPath(settings.Model), RuntimePath(), settings.Headset ?? "", settings.CtrlPort, settings.ListenPort,
+        settings.Lo, settings.Hi, new Dictionary<string, float>(settings.HiChannels ?? new(), StringComparer.Ordinal),
+        settings.Filter.Trim().ToLowerInvariant(), settings.MinCutoff, settings.Beta, settings.Tau, Math.Clamp(settings.Threads, 1, 8));
+
+    // Starts, keeps or stops the built-in model and the UDP input to match the settings.
     private void Bind()
     {
+        bool builtIn = settings.Enabled && UseBuiltIn();
+        if (builtIn)
+        {
+            var o = EngineOptions();
+            var stamp = Stamp(o.ModelPath);
+            if (engine is null || !engine.Settings.SameAs(o) || stamp != modelStamp)
+            {
+                engine?.Dispose();
+                ResetLayout();
+                modelStamp = stamp;
+                engine = new MouthLink.MouthLinkEngine(o, log);
+            }
+        }
+        else if (engine is not null) { engine.Dispose(); engine = null; ResetLayout(); }
+
+        bool wantUdp = settings.Enabled && !builtIn;
+        if (wantUdp && socket is not null && boundPort == settings.Port) return;
         socket?.Dispose(); socket = null; boundPort = 0;
         if (!settings.Enabled) { log("MouthLink: disabled in " + FileName + "."); return; }
+        if (builtIn)
+        {
+            log($"MouthLink ml4: built-in model {FullPath(settings.Model)}; default mode {settings.DefaultMode}, " +
+                $"{modes.Count} per-channel modes; config {configPath}.");
+            return;
+        }
         try
         {
             socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, settings.Port));
             socket.Client.Blocking = false; boundPort = settings.Port;
-            log($"MouthLink ml3: listening on 127.0.0.1:{settings.Port}; default mode {settings.DefaultMode}, " +
+            log($"MouthLink ml4: listening on 127.0.0.1:{settings.Port} (mouthlink_live.py){sourceNote}; default mode {settings.DefaultMode}, " +
                 $"{modes.Count} per-channel modes; config {configPath}.");
         }
         catch (Exception ex) { log($"MouthLink input unavailable on 127.0.0.1:{settings.Port}: {ex.Message}"); }
@@ -186,8 +267,31 @@ internal sealed class MouthLinkInput : IDisposable
                 s.TongueGateFrom = 0.05f; s.TongueGateFull = 0.20f;
             }
             if (!(s.FreshMs > 0)) s.FreshMs = 150;
+            if (s.Source.Trim().ToLowerInvariant() is not ("auto" or "builtin" or "udp"))
+            {
+                log($"MouthLink: Source \"{s.Source}\" is not auto|builtin|udp; using auto.");
+                s.Source = "auto";
+            }
+            if (s.Filter.Trim().ToLowerInvariant() is not ("euro" or "ema"))
+            {
+                log($"MouthLink: Filter \"{s.Filter}\" is not euro|ema; using euro.");
+                s.Filter = "euro";
+            }
+            if (!(s.Lo >= 0 && s.Hi > s.Lo && s.Hi <= 1))
+            {
+                log("MouthLink: need 0 <= Lo < Hi <= 1; using 0.15 / 0.55.");
+                s.Lo = 0.15f; s.Hi = 0.55f;
+            }
+            s.HiChannels ??= new();
+            foreach (var (name, v) in s.HiChannels.ToArray())
+                if (!(v > s.Lo && v <= 1)) { log($"MouthLink: HiChannels {name}={v} needs Lo < value <= 1 (ignored)."); s.HiChannels.Remove(name); }
+            if (!(s.MinCutoff > 0) || !(s.Beta >= 0)) { s.MinCutoff = 0.7f; s.Beta = 0.5f; }
+            if (!(s.Tau >= 0)) s.Tau = 0.04f;
+            s.Model = string.IsNullOrWhiteSpace(s.Model) ? "MouthLink/mouth.onnx" : s.Model;
+            s.Runtime ??= "";
+            sourceNote = s.Source.Trim().ToLowerInvariant() == "auto" ? $", no built-in model at {s.Model}" : "";
             settings = s; defaultMode = dm; modes = m;
-            if (!initial) log($"MouthLink: reloaded {FileName}: enabled={s.Enabled} default={s.DefaultMode} " +
+            if (!initial) log($"MouthLink: reloaded {FileName}: enabled={s.Enabled} source={s.Source} default={s.DefaultMode} " +
                               $"modes={string.Join(", ", m.Select(kv => kv.Key + "=" + Describe(kv.Value)))}.");
         }
         catch (Exception ex)
@@ -203,13 +307,31 @@ internal sealed class MouthLinkInput : IDisposable
     {
         if (configChecked != 0 && Stopwatch.GetElapsedTime(configChecked, now).TotalSeconds < 1) return;
         configChecked = now;
-        DateTime stamp;
-        try { stamp = File.Exists(configPath) ? File.GetLastWriteTimeUtc(configPath) : default; }
-        catch { return; }
-        if (stamp == configStamp) return;
-        bool wasEnabled = settings.Enabled; int port = settings.Port;
-        LoadSettings(initial: false);
-        if (settings.Enabled != wasEnabled || settings.Port != port || (settings.Enabled && socket is null)) Bind();
+        bool changed = Stamp(configPath) != configStamp;
+        if (changed) LoadSettings(initial: false);
+        // Also picks up a model file that appeared (auto) or was replaced by a retrained one.
+        bool wantEngine = settings.Enabled && UseBuiltIn();
+        bool modelChanged = engine is not null && Stamp(engine.Settings.ModelPath) != modelStamp;
+        if (changed || modelChanged || wantEngine != (engine is not null) ||
+            settings.Enabled && !wantEngine && socket is null)
+            Bind();
+    }
+
+    private void ResetLayout()
+    {
+        layoutKey = []; layout = []; layoutNames = []; layoutIndex = new(StringComparer.Ordinal);
+        count = 0; received = 0;
+    }
+
+    // Built-in model: the latest values from the engine thread, in the same form as a datagram.
+    private void ReadEngine()
+    {
+        if (engine is null) return;
+        Span<float> tmp = stackalloc float[MaxChannels];
+        if (!engine.TryRead(tmp, out int n, out long at, out _, out var names) || at == received) return;
+        if (!SetLayout(names, false, n)) { rejected++; return; }
+        tmp[..n].CopyTo(values); count = n;
+        sequence++; received = at; packets++;
     }
 
     public Mode ModeFor(string name) => modes.TryGetValue(name, out var m) ? m : defaultMode;
@@ -296,7 +418,7 @@ internal sealed class MouthLinkInput : IDisposable
                 if (t.New) foreach (var s in t.Shapes) shapes[(int)s].Weight = 0;
             return;
         }
-        Receive();
+        if (engine is not null) ReadEngine(); else Receive();
         bool fresh = received != 0 && count == layout.Length &&
                      Stopwatch.GetElapsedTime(received, now).TotalMilliseconds < settings.FreshMs;
         if (fresh)
@@ -340,22 +462,55 @@ internal sealed class MouthLinkInput : IDisposable
             .OrderByDescending(i => values[i]).Take(4)
             .Select(i => FormattableString.Invariant($"{layoutNames[i]}={values[i]:F2}"));
         log(FormattableString.Invariant(
-            $"MouthLink: rx={(packets - packetsAtReport) / seconds:F1}Hz fresh={lastFresh} seq={sequence} ch={count} ") +
+            $"MouthLink{(engine is not null ? " [built-in: " + engine.Status + "]" : "")}: rx={(packets - packetsAtReport) / seconds:F1}Hz fresh={lastFresh} seq={sequence} ch={count} ") +
             FormattableString.Invariant($"gate={lastGate:F2} L={W(UnifiedExpressions.TongueLeft):F2} R={W(UnifiedExpressions.TongueRight):F2} ") +
             FormattableString.Invariant($"U={W(UnifiedExpressions.TongueUp):F2} D={W(UnifiedExpressions.TongueDown):F2} ") +
             $"top: {string.Join(" ", top)} rejected={rejected}");
         lastReport = now; packetsAtReport = packets;
     }
 
-    public void Dispose() => socket?.Dispose();
+    public void Dispose()
+    {
+        engine?.Dispose(); engine = null;
+        socket?.Dispose(); socket = null;
+    }
 
     private const string DefaultConfigText = """
 // MouthLink input of UnifiedPicoModule-MouthLink.
-// Values come from tools/mouthlink_live.py (MouthLink repository) over 127.0.0.1.
 // Save this file and the module re-reads it within a second; no VRCFT restart needed.
 {
   "Enabled": true,
+
+  // Where model values come from:
+  //   "auto"     built-in model if the Model file exists, else UDP (default)
+  //   "builtin"  this module subscribes to the headset's mouth camera and runs the model itself
+  //   "udp"      values from tools/mouthlink_live.py on 127.0.0.1:Port; also frees the camera for
+  //              MouthLink.Receiver (recording) — the headset streams to one subscriber at a time
+  "Source": "auto",
   "Port": 9050,
+
+  // ---- built-in model ----
+  // Model: <name>.onnx with <name>.json next to it (export_onnx.py writes both).
+  // Runtime: onnxruntime.dll (x64, 1.16 or newer); empty = MouthLink/onnxruntime.dll if present,
+  // else the one VRCFaceTracking ships. Relative paths are relative to this DLL.
+  // Replacing the model file reloads it.
+  "Model": "MouthLink/mouth.onnx",
+  "Runtime": "",
+  // Headset IP; empty = the headset the PICO bridge connects from (or the first DISCOVER answer).
+  "Headset": "",
+  "CtrlPort": 9040,
+  "ListenPort": 9041,
+  // Channels stock lacks (tongue directions, separate cheeks, ...): model output <= Lo -> 0, >= Hi -> 1.
+  "Lo": 0.15,
+  "Hi": 0.55,
+  // Own Hi for single channels, e.g. { "TongueRight": 0.45 }.
+  "HiChannels": {},
+  // "euro" (One Euro: smooth at rest, quick on fast moves) or "ema" (constant, Tau seconds).
+  "Filter": "euro",
+  "MinCutoff": 0.7,
+  "Beta": 0.5,
+  "Tau": 0.04,
+  "Threads": 1,
 
   // Model values older than this fall back to stock; channels stock lacks are written 0.
   "FreshMs": 150,

@@ -10,13 +10,28 @@
 
 English | [简体中文](README_zh.md)
 
-> **UnifiedPicoModule-MouthLink** — a fork of UnifiedPicoModule 0.4.0 with one addition: an
-> optional loopback input (`127.0.0.1:9050`) for [MouthLink](https://github.com/UndefinedSignal/MouthLink),
-> a mouth model trained on the user's own PICO 4 Pro mouth-camera frames. Model values are laid over
-> stock per channel (`model` / `stock` / `blend:w` / `max`, set in `MouthLink.json` next to the DLL and
-> re-read on save) and add channels stock lacks: tongue directions, TongueRoll, separate cheek puff and
-> suck, lip tighteners. Without the MouthLink input the module behaves exactly like upstream.
-> Source: `Sdk/MouthLinkInput.cs`. Everything below is the upstream README.
+> **UnifiedPicoModule-MouthLink** — a fork of UnifiedPicoModule 0.4.0 with one addition: mouth tracking
+> from [MouthLink](https://github.com/UndefinedSignal/MouthLink), a model trained on the user's own
+> PICO 4 Pro mouth-camera frames. It adds what stock lacks — tongue directions, TongueRoll, separate
+> cheek puff and suck, lip tighteners — and can replace stock mouth shapes per channel.
+> Without a MouthLink model the module behaves exactly like upstream.
+>
+> <p align="center"><img src="docs/media/mouthlink-demo.gif" alt="Tongue and mouth from the MouthLink model on a VRChat avatar" width="480"></p>
+>
+> **Run it.** Start VRCFaceTracking — nothing else. With `MouthLink/mouth.onnx` and its `mouth.json`
+> (from MouthLink's `export_onnx.py`) next to the DLL, the module itself subscribes to the headset's mouth
+> camera ([PicoET-Enhance-MouthLink](https://github.com/UndefinedSignal/PicoET-Enhance-MouthLink)), runs
+> the model on the CPU (≈2–3 ms per frame, one thread) and lays the result over stock. ONNX Runtime is the
+> one VRCFaceTracking already ships; no Python, no extra install. The headset address is taken from the
+> PICO bridge connection.
+>
+> **Settings** — `MouthLink.json` next to the DLL, re-read on save (a replaced model file reloads too):
+> `Source` (`auto` / `builtin` / `udp`), per-channel mode (`model` / `stock` / `blend:w` / `max`),
+> `Lo`/`Hi`/`HiChannels` for the channels stock lacks, `Filter` (`euro` / `ema`). `"Source": "udp"`
+> switches to values from MouthLink's `tools/mouthlink_live.py` on `127.0.0.1:9050` and frees the
+> camera for recording with `MouthLink.Receiver` (the headset streams to one subscriber at a time).
+>
+> Source: `Sdk/MouthLinkInput.cs`, `Sdk/MouthLink/`. Everything below is the upstream README.
 
 UnifiedPicoModule is a PICO eye and face tracking module for VRCFaceTracking (VRCFT).
 
