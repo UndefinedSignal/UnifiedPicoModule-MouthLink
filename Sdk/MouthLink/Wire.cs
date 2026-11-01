@@ -13,12 +13,14 @@ internal static class Wire
     public const byte Gray8 = 0x01, Gray16Le = 0x02;
     public const int HeaderSize = 42;
 
-    /// <summary>SUBSCRIBE: every frame (fps 0), source's pixel format, full frame, no STOCK.</summary>
-    public static byte[] SubscribePacket(ushort replyPort)
+    /// <summary>SUBSCRIBE: frame-rate limit (0 = every frame), source's pixel format, full frame, no STOCK.</summary>
+    /// <remarks>The headset keeps a source-clock grid (ml2+): 60, 45 or 30 from a 90 Hz camera are exact.</remarks>
+    public static byte[] SubscribePacket(ushort replyPort, byte fps = 0)
     {
         var p = new byte[16];
         p[0] = Subscribe; p[1] = Version;
         BinaryPrimitives.WriteUInt16LittleEndian(p.AsSpan(2), replyPort);
+        p[4] = fps;
         return p;
     }
 

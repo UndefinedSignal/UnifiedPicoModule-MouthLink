@@ -98,6 +98,7 @@ internal sealed class MouthLinkInput : IDisposable
         public float Tau { get; set; } = 0.04f;
         public float Attack { get; set; } = 0.15f;
         public int Threads { get; set; } = 1;
+        public int Fps { get; set; } = 0;
     }
 
     // One model channel: VRCFT targets; New = stock has no such channel; Gated = needs TongueOut up.
@@ -190,7 +191,7 @@ internal sealed class MouthLinkInput : IDisposable
     private MouthLink.MouthLinkEngine.Options EngineOptions() => new(
         FullPath(settings.Model), RuntimePath(), settings.Headset ?? "", settings.CtrlPort, settings.ListenPort,
         settings.Lo, settings.Hi, new Dictionary<string, float>(settings.HiChannels ?? new(), StringComparer.Ordinal),
-        settings.Filter.Trim().ToLowerInvariant(), settings.MinCutoff, settings.Beta, settings.Tau, settings.Attack, Math.Clamp(settings.Threads, 1, 8));
+        settings.Filter.Trim().ToLowerInvariant(), settings.MinCutoff, settings.Beta, settings.Tau, settings.Attack, Math.Clamp(settings.Threads, 1, 8), settings.Fps);
 
     // Starts, keeps or stops the built-in model and the UDP input to match the settings.
     private void Bind()
@@ -300,6 +301,7 @@ internal sealed class MouthLinkInput : IDisposable
             if (!(s.MinCutoff > 0) || !(s.Beta >= 0)) { s.MinCutoff = 0.7f; s.Beta = 0.5f; }
             if (!(s.Tau >= 0)) s.Tau = 0.04f;
             if (!(s.Attack >= 0)) s.Attack = 0.15f;
+            if (s.Fps is < 0 or > 90) { log($"MouthLink: Fps {s.Fps} is not 0..90; using 0 (every frame)."); s.Fps = 0; }
             if (s.Port is < 1 or > 65535) { log($"MouthLink: Port {s.Port} is not 1..65535; using 9050."); s.Port = 9050; }
             if (s.CtrlPort is < 1 or > 65535) { log($"MouthLink: CtrlPort {s.CtrlPort} is not 1..65535; using 9040."); s.CtrlPort = 9040; }
             if (s.ListenPort is < 1 or > 65535) { log($"MouthLink: ListenPort {s.ListenPort} is not 1..65535; using 9041."); s.ListenPort = 9041; }
@@ -541,6 +543,10 @@ internal sealed class MouthLinkInput : IDisposable
   // the mouth opens does not throw the tongue out. 0 = like the other channels.
   "Attack": 0.15,
   "Threads": 1,
+  // Camera frames per second from the headset: 0 = every frame (90, ~118 Mbit/s over Wi-Fi).
+  // 60 (~80 Mbit/s), 45 (~60) or 30 (~40) ease the load on Wi-Fi and the headset's radio,
+  // at the cost of a little more delay. Smoothing is time-based, so its feel stays the same.
+  "Fps": 0,
 
   // Model values older than this fall back to stock; channels stock lacks are written 0.
   "FreshMs": 150,

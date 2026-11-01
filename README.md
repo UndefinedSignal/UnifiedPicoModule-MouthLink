@@ -27,7 +27,8 @@ English | [简体中文](README_zh.md)
 >
 > **Settings** — `MouthLink.json` next to the DLL, re-read on save (a replaced model file reloads too):
 > `Source` (`auto` / `builtin` / `udp`), per-channel mode (`model` / `stock` / `blend:w` / `max`),
-> `Lo`/`Hi`/`HiChannels` for the channels stock lacks, `Filter` (`euro` / `ema`). `"Source": "udp"`
+> `Lo`/`Hi`/`HiChannels` for the channels stock lacks, `Filter` (`ema` / `euro`), `Attack`, tongue hysteresis
+> `TongueOn`/`TongueOff`, and `Fps` (camera rate; 45 or 30 if Wi-Fi or the headset's radio struggle at 90). `"Source": "udp"`
 > switches to values from MouthLink's `tools/mouthlink_live.py` on `127.0.0.1:9050` and frees the
 > camera for recording with `MouthLink.Receiver` (the headset streams to one subscriber at a time).
 >

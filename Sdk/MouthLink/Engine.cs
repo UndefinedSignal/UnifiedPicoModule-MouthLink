@@ -26,7 +26,7 @@ internal sealed class MouthLinkEngine : IDisposable
     public sealed record Options(
         string ModelPath, string RuntimePath, string Headset, int CtrlPort, int ListenPort,
         float Lo, float Hi, IReadOnlyDictionary<string, float> HiChannels,
-        string Filter, float MinCutoff, float Beta, float Tau, float Attack, int Threads)
+        string Filter, float MinCutoff, float Beta, float Tau, float Attack, int Threads, int Fps)
     {
         // Records compare dictionaries by reference; restart decisions need contents.
         public bool SameAs(Options o) => this with { HiChannels = o.HiChannels } == o &&
@@ -134,14 +134,14 @@ internal sealed class MouthLinkEngine : IDisposable
             log($"MouthLink: HiChannels lists {name}, the model has no such channel (ignored).");
         lock (gate) NamesUtf8 = Encoding.UTF8.GetBytes(string.Join(",", channels));
         log($"MouthLink built-in model: {Path.GetFileName(options.ModelPath)} ({k} channels, input {meta.Width}x{meta.Height}), " +
-            $"onnxruntime {version}, {options.Threads} thread(s); filter {Describe()}; lo={options.Lo} hi={options.Hi}" +
+            $"onnxruntime {version}, {options.Threads} thread(s); camera {(options.Fps is > 0 and < 90 ? options.Fps + " fps" : "every frame (90 fps)")}; filter {Describe()}; lo={options.Lo} hi={options.Hi}" +
             (options.HiChannels.Count > 0 ? " (" + string.Join(", ", options.HiChannels.Select(kv => FormattableString.Invariant($"{kv.Key}={kv.Value}"))) + ")" : "") + ".");
 
         // ---- network ----
         Socket? socket = null;
         var assembler = new FrameAssembler();
         var buffer = new byte[65536];
-        var subscribe = Wire.SubscribePacket((ushort)options.ListenPort);
+        var subscribe = Wire.SubscribePacket((ushort)options.ListenPort, (byte)Math.Clamp(options.Fps, 0, 90));
         IPEndPoint? target = null, discovered = null;
         long foreign = 0;
         IPAddress? configured = null;
