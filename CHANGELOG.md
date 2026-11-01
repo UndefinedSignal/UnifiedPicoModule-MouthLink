@@ -2,6 +2,16 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [0.4.0-mouthlink.6] - 2026-11-01
+
+### Features
+- `"Fps"` in `MouthLink.json`: camera frame rate requested from the headset. `0` = every frame (90, ~118 Mbit/s over Wi-Fi); `60` / `45` / `30` reduce it to ~80 / ~60 / ~40 Mbit/s for Wi-Fi networks or headset radios that cannot sustain the full stream. Smoothing and `Attack` are time-based and feel the same; the delay grows by at most one frame interval.
+- Tongue hysteresis: the model's TongueOut shows the tongue from `"TongueOn"` (0.5) and hides it only below `"TongueOff"` (0.3); below that, TongueOut and the tongue directions are 0. Small spikes no longer flash a tongue tip. `"TongueOn": 0` turns it off. The 5-second log line shows `tongue=shown/hidden` and the number of toggles.
+
+### Notes & Caveats
+- Replayed through a personal model on prompted recordings: brief false tongue appearances at rest and with an open mouth went from 10 to 0; frames where the tongue is out and shown went down by about 3 percentage points (the tongue appears slightly later).
+- An existing `MouthLink.json` keeps its values; missing keys use the defaults above. Back up `MouthLink.json` and `MouthLink/` before reinstalling the module from a ZIP: VRCFT replaces the whole module folder.
+
 ## [0.4.0-mouthlink.5] - 2026-11-01
 
 ### Fixed
