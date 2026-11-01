@@ -2,6 +2,16 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [0.4.0-mouthlink.5] - 2026-11-01
+
+### 修复
+- 内置 MouthLink：舌头通道按 `Attack`（默认 0.15 秒）缓慢上升、按正常速度回落，张嘴时的短暂误检不再把舌头"弹出"（与 `mouthlink_live.py --attack` 相同）。
+- 默认平滑改为 `"Filter": "ema"`、`"Tau": 0.04`（与 `mouthlink_live.py` 相同）。One Euro 滤波会削弱短促表情，仍可通过 `"euro"` 使用。
+
+### 说明与注意事项
+- 已有的 `MouthLink.json` 保留原值：请手动设置 `"Filter": "ema"` 并添加 `"Attack": 0.15`。
+- 在 VRCFT 中从 ZIP 重新安装模块会替换整个模块文件夹，包括 `MouthLink.json` 和 `MouthLink/`（模型）。请先备份。
+
 ## [0.4.0-mouthlink.4] - 2026-10-31
 
 分支版本（UnifiedPicoModule-MouthLink）。未安装 MouthLink 模型时，行为与上游一致。

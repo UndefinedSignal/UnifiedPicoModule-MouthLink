@@ -2,6 +2,16 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [0.4.0-mouthlink.5] - 2026-11-01
+
+### Fixed
+- Built-in MouthLink: tongue channels rise with `Attack` (default 0.15 s) and fall at the normal rate, so a short false spike while the mouth opens no longer throws the tongue out (as `mouthlink_live.py --attack`).
+- Default smoothing is `"Filter": "ema"`, `"Tau": 0.04` (as `mouthlink_live.py`). The One Euro filter damped short expressions; it stays available as `"euro"`.
+
+### Notes & Caveats
+- An existing `MouthLink.json` keeps its own values: set `"Filter": "ema"` and add `"Attack": 0.15` by hand.
+- Reinstalling the module from a ZIP in VRCFT replaces the whole module folder, including `MouthLink.json` and `MouthLink/` (the model). Back them up first.
+
 ## [0.4.0-mouthlink.4] - 2026-10-31
 
 Fork release (UnifiedPicoModule-MouthLink). Upstream behaviour is unchanged unless a MouthLink model is installed.

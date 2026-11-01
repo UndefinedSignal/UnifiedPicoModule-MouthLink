@@ -1,6 +1,6 @@
 {
   "ModuleId": "8322e16d-c38b-42f0-8d35-68f27227b442",
-  "Version": "0.4.0-mouthlink.4",
+  "Version": "0.4.0-mouthlink.5",
   "AuthorName": "UnifiedPicoModule contributors; MouthLink: UndefinedSignal",
   "ModuleName": "Unified PICO Face Tracking + MouthLink",
   "ModuleDescription": "Fork of UnifiedPicoModule 0.4.0 with MouthLink: an optional mouth model trained on your own PICO 4 Pro mouth-camera frames (tongue directions, separate cheeks, lip tighteners), run inside the module. PICO eye and face tracking for VRCFaceTracking, receiving data from PicoFacialBridge, PICO Connect, Streaming Assistant, or PicoFacialDataDaemon. Gaze comes from the EyeLook expression model and eyelids from 1 - EyeBlink; native eye packets supply a measured pupil diameter. Supports independent per-eye eye expressions and configurable expression processing.",

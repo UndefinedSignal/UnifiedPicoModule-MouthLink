@@ -210,7 +210,7 @@ internal sealed class MouthLinkInput : IDisposable
         if (!settings.Enabled) { log("MouthLink: disabled in " + FileName + "."); return; }
         if (builtIn)
         {
-            log($"MouthLink ml4: built-in model {FullPath(settings.Model)}; default mode {settings.DefaultMode}, " +
+            log($"MouthLink ml5: built-in model {FullPath(settings.Model)}; default mode {settings.DefaultMode}, " +
                 $"{modes.Count} per-channel modes; config {configPath}.");
             return;
         }
@@ -218,7 +218,7 @@ internal sealed class MouthLinkInput : IDisposable
         {
             socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, settings.Port));
             socket.Client.Blocking = false; boundPort = settings.Port;
-            log($"MouthLink ml4: listening on 127.0.0.1:{settings.Port} (mouthlink_live.py){sourceNote}; default mode {settings.DefaultMode}, " +
+            log($"MouthLink ml5: listening on 127.0.0.1:{settings.Port} (mouthlink_live.py){sourceNote}; default mode {settings.DefaultMode}, " +
                 $"{modes.Count} per-channel modes; config {configPath}.");
         }
         catch (Exception ex) { log($"MouthLink input unavailable on 127.0.0.1:{settings.Port}: {ex.Message}"); }

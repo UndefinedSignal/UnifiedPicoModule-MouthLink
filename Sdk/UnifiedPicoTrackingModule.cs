@@ -67,7 +67,7 @@ public sealed class UnifiedPicoTrackingModule : ExtTrackingModule
             pipeline = new(config); diagnostics = new(Log); stopped = false;
             Status = ownsEye || ownsFace ? ModuleState.Active : ModuleState.Idle;
             if (ownsEye || ownsFace) StartSources();
-            Log("UnifiedPicoModule 0.4.0 + MouthLink ml4: X v1/v2; VRCFT SDK 5.4.5 / net10. UDP is unauthenticated: trusted LAN only.");
+            Log("UnifiedPicoModule 0.4.0 + MouthLink ml5: X v1/v2; VRCFT SDK 5.4.5 / net10. UDP is unauthenticated: trusted LAN only.");
             return (ownsEye, ownsFace);
         }
     }

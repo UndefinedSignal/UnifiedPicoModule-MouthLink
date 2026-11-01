@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.4.0-mouthlink.4</Version>
+    <Version>0.4.0-mouthlink.5</Version>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <AssemblyName>UnifiedPicoModule</AssemblyName>
     <VrcftSdkDir Condition="'$(VrcftSdkDir)' == ''">$(MSBuildThisFileDirectory).sdk</VrcftSdkDir>
