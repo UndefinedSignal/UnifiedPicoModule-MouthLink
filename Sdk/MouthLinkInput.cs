@@ -77,6 +77,10 @@ internal sealed class MouthLinkInput : IDisposable
         public Dictionary<string, string> Modes { get; set; } = new();
         public float TongueGateFrom { get; set; } = 0.05f;
         public float TongueGateFull { get; set; } = 0.20f;
+        // Hysteresis on the model's TongueOut: the tongue appears from TongueOn and disappears only
+        // below TongueOff, so a value hovering near one threshold does not flicker. TongueOn 0 = off.
+        public float TongueOn { get; set; } = 0.5f;
+        public float TongueOff { get; set; } = 0.3f;
 
         // Built-in model (Source "auto" / "builtin"). Relative paths are relative to this DLL.
         public string Source { get; set; } = "auto";
@@ -143,6 +147,8 @@ internal sealed class MouthLinkInput : IDisposable
     private long received, lastReport, packets, rejected, packetsAtReport;
     private uint sequence;
     private float lastGate;
+    private bool tongueShown;
+    private long tongueToggles;
     private bool lastFresh;
 
     public MouthLinkInput(Action<string> logger, string directory)
@@ -266,6 +272,11 @@ internal sealed class MouthLinkInput : IDisposable
             {
                 log("MouthLink: need 0 <= TongueGateFrom < TongueGateFull <= 1; using 0.05 / 0.20.");
                 s.TongueGateFrom = 0.05f; s.TongueGateFull = 0.20f;
+            }
+            if (!(s.TongueOn == 0 || (s.TongueOff >= 0 && s.TongueOn > s.TongueOff && s.TongueOn <= 1)))
+            {
+                log("MouthLink: need 0 <= TongueOff < TongueOn <= 1 (TongueOn 0 = off); using 0.5 / 0.3.");
+                s.TongueOn = 0.5f; s.TongueOff = 0.3f;
             }
             if (!(s.FreshMs > 0)) s.FreshMs = 150;
             if (s.Source.Trim().ToLowerInvariant() is not ("auto" or "builtin" or "udp"))
@@ -440,6 +451,16 @@ internal sealed class MouthLinkInput : IDisposable
                         shapes[(int)s].Weight = Math.Clamp(mode.Apply(t.New ? 0 : shapes[(int)s].Weight, values[i]), 0f, 1f);
                 }
         }
+        // Hysteresis on the model's TongueOut (directions and TongueRoll follow through the gate below).
+        bool modelTongue = fresh && settings.TongueOn > 0 && layoutIndex.ContainsKey("TongueOut") &&
+                           ModeFor("TongueOut").Kind != ModeKind.Stock;
+        if (modelTongue)
+        {
+            ref float w = ref shapes[(int)UnifiedExpressions.TongueOut].Weight;
+            if (tongueShown ? w < settings.TongueOff : w >= settings.TongueOn) { tongueShown = !tongueShown; tongueToggles++; }
+            if (!tongueShown) w = 0f;
+        }
+        else tongueShown = false;
         float gate = GateFor(shapes[(int)UnifiedExpressions.TongueOut].Weight);
         // Channels stock lacks are always written here: fresh → model (tongue ones gated by TongueOut),
         // stale or mode "stock" → 0. Nothing else writes them, and left alone they can hold garbage
@@ -468,7 +489,7 @@ internal sealed class MouthLinkInput : IDisposable
             .Select(i => FormattableString.Invariant($"{layoutNames[i]}={values[i]:F2}"));
         log(FormattableString.Invariant(
             $"MouthLink{(engine is not null ? " [built-in: " + engine.Status + "]" : "")}: rx={(packets - packetsAtReport) / seconds:F1}Hz fresh={lastFresh} seq={sequence} ch={count} ") +
-            FormattableString.Invariant($"gate={lastGate:F2} L={W(UnifiedExpressions.TongueLeft):F2} R={W(UnifiedExpressions.TongueRight):F2} ") +
+            FormattableString.Invariant($"tongue={(tongueShown ? "shown" : "hidden")} toggles={tongueToggles} gate={lastGate:F2} L={W(UnifiedExpressions.TongueLeft):F2} R={W(UnifiedExpressions.TongueRight):F2} ") +
             FormattableString.Invariant($"U={W(UnifiedExpressions.TongueUp):F2} D={W(UnifiedExpressions.TongueDown):F2} ") +
             $"top: {string.Join(" ", top)} rejected={rejected}");
         lastReport = now; packetsAtReport = packets;
@@ -545,7 +566,12 @@ internal sealed class MouthLinkInput : IDisposable
   // Tongue directions and TongueRoll show only while TongueOut (as finally written) is up:
   // 0 below TongueGateFrom, full from TongueGateFull.
   "TongueGateFrom": 0.05,
-  "TongueGateFull": 0.20
+  "TongueGateFull": 0.20,
+
+  // Model TongueOut with hysteresis: the tongue appears once TongueOut reaches TongueOn and goes
+  // away only below TongueOff, so it does not flicker or pop out on small spikes. TongueOn 0 = off.
+  "TongueOn": 0.5,
+  "TongueOff": 0.3
 }
 
 """;
