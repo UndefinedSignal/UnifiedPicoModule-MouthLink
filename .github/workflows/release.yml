@@ -87,7 +87,7 @@ jobs:
               foreach ($entry in $zip.Entries) {
                   $name = $entry.FullName.Replace('\', '/')
                   if ($name -match '(^|/)(agents|archive|private|\.sdk|bin|obj)/|migration|current-settings|\.(log|pcap|pcapng|har|pdb)$' -or
-                      ($name.EndsWith('.dll', [StringComparison]::OrdinalIgnoreCase) -and $name -cne 'UnifiedPicoModule.dll')) {
+                      ($name.EndsWith('.dll', [StringComparison]::OrdinalIgnoreCase) -and $name -cne 'UnifiedPicoModule.dll' -and $name -cne 'MouthLink/onnxruntime.dll')) {
                       throw "Non-public or host-dependency package entry: $name"
                   }
               }
