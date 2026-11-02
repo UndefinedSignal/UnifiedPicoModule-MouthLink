@@ -161,6 +161,14 @@ This file is not a redistribution license addendum for the Apache-2.0 DLLs. The 
 
 The module project references this package with `PrivateAssets=all`. `PrivateAssets` is a dependency-flow setting. It does not guarantee that the files are never copied, and it is not a license. The module package is assembled from a file allowlist and contains no logging or other NuGet DLLs. The required runtime dependencies are provided by the host; the module has been run on official VRCFT 5.4.5, and other host versions have not been tested. Distributing these components instead would require a separate review of copyrights, licenses and addenda. Microsoft's copyright is not held by this project.
 
+### ONNX Runtime (MouthLink fork, bundled)
+
+- Author: Microsoft
+- Version: [1.23.2](https://github.com/microsoft/onnxruntime/releases/tag/v1.23.2), official `onnxruntime-win-x64-1.23.2.zip` (CPU), Authenticode-signed by Microsoft
+- License: MIT, see the [LICENSE](https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE)
+- Copyright notice: Copyright (c) Microsoft Corporation
+- Use: the built-in MouthLink model runs through its C API. VRCFaceTracking 6 no longer ships ONNX Runtime, so the release package of this fork includes `MouthLink/onnxruntime.dll` unmodified, together with `MouthLink/onnxruntime-LICENSE.txt` and `MouthLink/onnxruntime-ThirdPartyNotices.txt` from the same archive. `tools/package.ps1` downloads the archive and checks its SHA-256 (`0b38df9a…9f3cd`) and that of the DLL (`dec964ab…84f1ea`) before packaging.
+
 ## Assets and future updates
 
 This project introduces no third-party icons or images, and the documentation uses no third-party icons, images or trademarked assets. If assets, dependencies or code reuse are added later, this file should record the source URL, commit or version, file scope, full license text, copyright, description of modifications, and whether the material ships with the module package. All third-party content must not be covered by a single blanket MIT file.

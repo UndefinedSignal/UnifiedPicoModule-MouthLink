@@ -2,6 +2,16 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [0.4.0-mouthlink.7] - 2026-11-02
+
+### 修复
+- VRCFaceTracking 6 不再自带 `onnxruntime.dll`，导致内置 MouthLink 模型以 "no onnxruntime library" 停止，只剩原生追踪。发布包现在包含 Microsoft 官方 ONNX Runtime 1.23.2（CPU，已签名），位于 `MouthLink/onnxruntime.dll`，并附带其许可证与声明；`tools/package.ps1` 会下载并校验 SHA-256。
+- 因缺少运行库而启动失败的模型，在 `MouthLink` 文件夹中出现 `onnxruntime.dll`（且文件 2 秒内未再变化）后会自动启动，无需重启 VRCFT。错误信息会说明文件应放在哪里。
+
+### 说明与注意事项
+- 已在 VRCFaceTracking 6.0.0.0 上确认：模块可正常加载和追踪。
+- ONNX Runtime 需要 Microsoft Visual C++ 2015–2022 x64 运行库，大多数 Windows 电脑已经安装。
+
 ## [0.4.0-mouthlink.6] - 2026-11-01
 
 ### 新功能

@@ -21,8 +21,9 @@ English | [简体中文](README_zh.md)
 > **Run it.** Start VRCFaceTracking — nothing else. With `MouthLink/mouth.onnx` and its `mouth.json`
 > (from MouthLink's `export_onnx.py`) next to the DLL, the module itself subscribes to the headset's mouth
 > camera ([PicoET-Enhance-MouthLink](https://github.com/UndefinedSignal/PicoET-Enhance-MouthLink)), runs
-> the model on the CPU (≈2–3 ms per frame, one thread) and lays the result over stock. ONNX Runtime is the
-> one VRCFaceTracking already ships; no Python, no extra install. The headset address is taken from the
+> the model on the CPU (≈2–3 ms per frame, one thread) and lays the result over stock. ONNX Runtime
+> (Microsoft's official 1.23.2 build) comes in the release ZIP as `MouthLink/onnxruntime.dll` —
+> VRCFaceTracking 6 no longer ships one; no Python, no extra install. The headset address is taken from the
 > PICO bridge connection.
 >
 > **Settings** — `MouthLink.json` next to the DLL, re-read on save (a replaced model file reloads too):

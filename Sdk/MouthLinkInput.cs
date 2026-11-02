@@ -129,7 +129,7 @@ internal sealed class MouthLinkInput : IDisposable
     private readonly string configPath;
     private MouthLink.MouthLinkEngine? engine;
     internal MouthLink.MouthLinkEngine? Engine => engine;   // tests
-    private DateTime modelStamp;
+    private DateTime modelStamp, runtimeStamp;
     private string sourceNote = "";
     private Settings settings = new();
     private Mode defaultMode = new(ModeKind.Model, 1);
@@ -201,11 +201,14 @@ internal sealed class MouthLinkInput : IDisposable
         {
             var o = EngineOptions();
             var stamp = Stamp(o.ModelPath);
-            if (engine is null || !engine.Settings.SameAs(o) || stamp != modelStamp)
+            var rstamp = Stamp(o.RuntimePath);
+            if (engine is null || !engine.Settings.SameAs(o) || stamp != modelStamp ||
+                engine.Failed && rstamp != runtimeStamp)
             {
                 engine?.Dispose();
                 ResetLayout();
                 modelStamp = stamp;
+                runtimeStamp = rstamp;
                 engine = new MouthLink.MouthLinkEngine(o, log);
             }
         }
@@ -217,7 +220,7 @@ internal sealed class MouthLinkInput : IDisposable
         if (!settings.Enabled) { log("MouthLink: disabled in " + FileName + "."); return; }
         if (builtIn)
         {
-            log($"MouthLink ml6: built-in model {FullPath(settings.Model)}; default mode {settings.DefaultMode}, " +
+            log($"MouthLink ml7: built-in model {FullPath(settings.Model)}; default mode {settings.DefaultMode}, " +
                 $"{modes.Count} per-channel modes; config {configPath}.");
             return;
         }
@@ -225,7 +228,7 @@ internal sealed class MouthLinkInput : IDisposable
         {
             socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, settings.Port));
             socket.Client.Blocking = false; boundPort = settings.Port;
-            log($"MouthLink ml6: listening on 127.0.0.1:{settings.Port} (mouthlink_live.py){sourceNote}; default mode {settings.DefaultMode}, " +
+            log($"MouthLink ml7: listening on 127.0.0.1:{settings.Port} (mouthlink_live.py){sourceNote}; default mode {settings.DefaultMode}, " +
                 $"{modes.Count} per-channel modes; config {configPath}.");
         }
         catch (Exception ex) { log($"MouthLink input unavailable on 127.0.0.1:{settings.Port}: {ex.Message}"); }
@@ -330,6 +333,15 @@ internal sealed class MouthLinkInput : IDisposable
         // Also picks up a model file that appeared (auto) or was replaced by a retrained one.
         bool wantEngine = settings.Enabled && UseBuiltIn();
         bool modelChanged = engine is not null && Stamp(engine.Settings.ModelPath) != modelStamp;
+        // A failed start (e.g. no onnxruntime.dll) is retried when the runtime file appears or changes.
+        if (engine is { Failed: true } && wantEngine)
+        {
+            var rp = RuntimePath();
+            var rs = Stamp(rp);
+            // Wait until the file has been still for 2 s: it may be in the middle of being copied.
+            modelChanged |= (rp != engine.Settings.RuntimePath || rs != runtimeStamp) &&
+                            rs != default && DateTime.UtcNow - rs > TimeSpan.FromSeconds(2);
+        }
         if (changed || modelChanged || wantEngine != (engine is not null) ||
             settings.Enabled && !wantEngine && socket is null)
             Bind();

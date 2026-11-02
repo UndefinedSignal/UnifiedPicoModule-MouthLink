@@ -161,6 +161,14 @@ AssemblyVersion 不能替代源码提交的固定版本，也不代表所有同�
 
 模块工程以 `PrivateAssets=all` 引用该包。`PrivateAssets` 是依赖传递的设置，并不保证相关文件不会被复制，也不是许可证。模块包按文件白名单打包，不包含 logging 或其他 NuGet DLL，所需的运行时依赖由宿主提供；模块已在官方 VRCFT 5.4.5 上运行，其他宿主版本尚未测试。如改为分发这些组件，须另行核对版权、许可证与附件。Microsoft 的版权不归本项目所有。
 
+### ONNX Runtime（MouthLink 分支，随包分发）
+
+- 作者：Microsoft
+- 版本：[1.23.2](https://github.com/microsoft/onnxruntime/releases/tag/v1.23.2)，官方 `onnxruntime-win-x64-1.23.2.zip`（CPU），带 Microsoft Authenticode 签名
+- 许可证：MIT，见 [LICENSE](https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE)
+- 版权声明：Copyright (c) Microsoft Corporation
+- 用途：内置 MouthLink 模型通过其 C API 运行。VRCFaceTracking 6 不再自带 ONNX Runtime，因此本分支的发布包原样包含 `MouthLink/onnxruntime.dll`，以及同一压缩包中的 `MouthLink/onnxruntime-LICENSE.txt` 和 `MouthLink/onnxruntime-ThirdPartyNotices.txt`。`tools/package.ps1` 在打包前下载该压缩包并校验其 SHA-256（`0b38df9a…9f3cd`）和 DLL 的 SHA-256（`dec964ab…84f1ea`）。
+
 ## 资源与后续更新
 
 本项目未引入第三方图标或图片，文档中也不使用第三方图标、图片或商标素材。今后如新增素材、依赖或复用代码，应在本文件中记录来源 URL、提交或版本、文件范围、许可证原文、版权、修改说明，以及是否随模块包分发。不得以一份总括性的 MIT 文件覆盖全部第三方内容。

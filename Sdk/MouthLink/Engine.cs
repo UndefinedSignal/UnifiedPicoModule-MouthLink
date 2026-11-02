@@ -58,6 +58,7 @@ internal sealed class MouthLinkEngine : IDisposable
     public long Frames, Inferences;
     public double InferenceMs;
     public string Status { get; private set; } = "starting";
+    public bool Failed { get; private set; }
 
     public MouthLinkEngine(Options options, Action<string> logger)
     {
@@ -95,6 +96,7 @@ internal sealed class MouthLinkEngine : IDisposable
         catch (Exception ex)
         {
             Status = "failed: " + ex.Message;
+            Failed = true;
             log($"MouthLink built-in model stopped: {ex.Message}");
         }
     }
@@ -109,7 +111,9 @@ internal sealed class MouthLinkEngine : IDisposable
         if (meta?.Channels is not { Length: > 0 and <= 256 } channels || meta.Height <= 0 || meta.Width <= 0)
             throw new InvalidDataException($"{metaPath}: need \"channels\" (1..256), \"height\" and \"width\"");
         if (!File.Exists(options.RuntimePath))
-            throw new FileNotFoundException($"no onnxruntime library {options.RuntimePath}");
+            throw new FileNotFoundException($"no onnxruntime library {options.RuntimePath}. VRCFaceTracking 6 no longer " +
+                "ships one: put onnxruntime.dll (Windows x64, 1.16 or newer; the release ZIP of this module includes it) " +
+                "into the MouthLink folder next to the module. MouthLink starts by itself once the file is there.");
         string version;
         try { version = OrtModel.LoadRuntime(options.RuntimePath); }
         catch (DllNotFoundException ex)
