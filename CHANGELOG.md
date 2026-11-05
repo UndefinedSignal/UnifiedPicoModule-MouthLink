@@ -2,6 +2,28 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [0.4.1-mouthlink.8] - 2026-11-05
+
+### Features
+- Merged upstream UnifiedPicoModule 0.4.1: Steam VRCFaceTracking 6.0 support with the same DLL, the VRCFT 6 pupil fix (no measured pupil is sent as "unavailable", not as constriction) and the host compatibility checks for both VRCFT versions in the release build.
+
+### Fixed
+- Stock cheek puff disappeared whenever MouthLink had no fresh values (model not running, `"Source": "udp"` without the script, a channel in `"stock"` mode): `CheekPuffLeft`/`CheekPuffRight`, which the stock `CheekPuff` also drives, were written 0. They now keep the stock value unless the model supplies them; `blend`/`max` for them mix with the stock value instead of 0.
+
+## [0.4.1] - 2026-11-05
+
+### Features
+- Support Steam VRCFT 6.0.0.0 (`3d363792`) with the same DLL used by VRCFT 5.4.5.
+- Fix missing pupil measurements being encoded as constriction in VRCFT 6; retain measured values and VRCFT 5's configured neutral diameter.
+- Add isolated compatibility checks for both official host versions, including native OSC output and legacy Avatar routing.
+
+### Design Rationale
+- Use VRCFT 6's unavailable-measurement sentinel only at the SDK write boundary, keeping source selection, processing and configuration defaults unchanged.
+- Keep the 5.4.5 compilation target and use the host's existing OSC sender; no replacement host or SDK is included.
+
+### Notes & Caveats
+- Official 5.4.5 and Steam 6 component checks cover loading, channel ownership, input clocks, pupil validity/expiry and actual OSC serialization. Real Cymple/VRCFT 6 mixing and Avatar rendering remain untested.
+
 ## [0.4.0-mouthlink.7] - 2026-11-02
 
 ### Fixed

@@ -101,8 +101,10 @@ internal sealed class MouthLinkInput : IDisposable
         public int Fps { get; set; } = 0;
     }
 
-    // One model channel: VRCFT targets; New = stock has no such channel; Gated = needs TongueOut up.
-    public sealed record Target(string Name, UnifiedExpressions[] Shapes, bool New, bool Gated);
+    // One model channel: VRCFT targets; New = stock has no such channel; Gated = needs TongueOut up;
+    // StockShared = a new channel whose VRCFT shape the stock mapping also writes (CheekPuffLeft/Right
+    // from stock CheekPuff): without model values it keeps the stock value instead of 0.
+    public sealed record Target(string Name, UnifiedExpressions[] Shapes, bool New, bool Gated, bool StockShared = false);
 
     public static readonly IReadOnlyDictionary<string, Target> Targets = BuildTargets();
     private static readonly string[] Mlk1Names = ["TongueLeft", "TongueRight", "TongueUp", "TongueDown", ""];
@@ -118,9 +120,13 @@ internal sealed class MouthLinkInput : IDisposable
         }
         foreach (var name in new[] { "TongueLeft", "TongueRight", "TongueUp", "TongueDown", "TongueRoll" })
             map[name] = new(name, [Enum.Parse<UnifiedExpressions>(name, false)], true, true);
+        var stockShapes = map.Values.Where(t => !t.New).SelectMany(t => t.Shapes).ToHashSet();
         foreach (var name in new[] { "CheekPuffLeft", "CheekPuffRight", "CheekSuckLeft", "CheekSuckRight",
                      "MouthTightenerLeft", "MouthTightenerRight" })
-            map[name] = new(name, [Enum.Parse<UnifiedExpressions>(name, false)], true, false);
+        {
+            var shape = Enum.Parse<UnifiedExpressions>(name, false);
+            map[name] = new(name, [shape], true, false, stockShapes.Contains(shape));
+        }
         return map;
     }
 
@@ -462,7 +468,7 @@ internal sealed class MouthLinkInput : IDisposable
                     var mode = ModeFor(t.Name);
                     if (mode.Kind == ModeKind.Stock) continue;
                     foreach (var s in t.Shapes)
-                        shapes[(int)s].Weight = Math.Clamp(mode.Apply(t.New ? 0 : shapes[(int)s].Weight, values[i]), 0f, 1f);
+                        shapes[(int)s].Weight = Math.Clamp(mode.Apply(t.New && !t.StockShared ? 0 : shapes[(int)s].Weight, values[i]), 0f, 1f);
                 }
         }
         // Hysteresis on the model's TongueOut (directions and TongueRoll follow through the gate below).
@@ -476,7 +482,8 @@ internal sealed class MouthLinkInput : IDisposable
         }
         else tongueShown = false;
         float gate = GateFor(shapes[(int)UnifiedExpressions.TongueOut].Weight);
-        // Channels stock lacks are always written here: fresh → model (tongue ones gated by TongueOut),
+        // Channels stock lacks are always written here (except CheekPuffLeft/Right, which the stock
+        // CheekPuff mapping also drives and which then keep the stock value): fresh → model (tongue ones gated by TongueOut),
         // stale or mode "stock" → 0. Nothing else writes them, and left alone they can hold garbage
         // (seen live: TongueUp = 4294967296 with "TongueUp": "stock" in ml2).
         foreach (var t in Targets.Values)
@@ -484,8 +491,10 @@ internal sealed class MouthLinkInput : IDisposable
             if (!t.New) continue;
             var mode = ModeFor(t.Name);
             bool present = layoutIndex.TryGetValue(t.Name, out int i);
-            if (fresh && present && !t.Gated && mode.Kind != ModeKind.Stock) continue;   // written above
-            float v = fresh && present ? mode.Apply(0, values[i]) * (t.Gated ? gate : 1f) : 0f;
+            bool modelWrites = fresh && present && mode.Kind != ModeKind.Stock;
+            if (modelWrites && !t.Gated) continue;              // written above
+            if (!modelWrites && t.StockShared) continue;         // the stock mapping already wrote it
+            float v = modelWrites ? mode.Apply(0, values[i]) * (t.Gated ? gate : 1f) : 0f;
             foreach (var s in t.Shapes) shapes[(int)s].Weight = Math.Clamp(v, 0f, 1f);
         }
         lastGate = gate; lastFresh = fresh;
